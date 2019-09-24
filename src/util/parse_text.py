@@ -1,10 +1,15 @@
 import sys, os
 import spacy
+import neuralcoref
+import pyinflect
 import re
 import codecs
 
 sys.path.append('/home/flora/Github/question_answer')
 nlp = spacy.load('en_core_web_sm')
+coref = neuralcoref.NeuralCoref(nlp.vocab)
+
+nlp.add_pipe(coref, name='neuralcoref')
 
 
 def parse_text(dataDir):

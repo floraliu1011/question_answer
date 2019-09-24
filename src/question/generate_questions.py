@@ -5,13 +5,15 @@ import spacy
 # from pattern.en import conjugate
 import logging
 import neuralcoref
+import pyinflect
+import string
 # nltk.download('averaged_perceptron_tagger')
 sys.path.append('/home/flora/Github/question_answer/src')
 import util.parse_text as pt
 
 # from src.util.parse_text import parse_text
 
-nlp = spacy.load("en")
+nlp = spacy.load("en_core_web_sm")
 coref = neuralcoref.NeuralCoref(nlp.vocab)
 
 nlp.add_pipe(coref, name='neuralcoref')
@@ -93,7 +95,11 @@ def coref_resolution(sent, pron):
     """
     Find the noun that the pron refers to 
     """
-    return ''
+    ref = pron._.coref_clusters[0].main
+    result = ref.text.strip()
+    if ref[0].tag_ != 'NNP':
+        result = result[0].lower() + result[1:]
+    return result
 
 def generate_subj_question(sent, nc, Qword):
     """Generate a WH question that doesn't envolve auxiliary verb extraction and sequence reordering."""
@@ -120,10 +126,8 @@ def generate_obj_question(sent, nc, Qword):
         return -1
     subj_root = subj_root[0]
     subject = sent[subj_root.left_edge.i:subj_root.right_edge.i + 1]
-    if subj_root.pos_ == 'PRON':
+    if subj_root.pos_ == 'PRON' and subj_root._.in_coref:
         subject = coref_resolution(sent, subj_root)
-        if subject == '':
-            return -1
     else:
         subject = subject.text.strip()
         if subj_root.left_edge.i == 0 and subj_root.left_edge.tag_ != 'NNP' and subj_root.left_edge.text != 'I':
@@ -196,19 +200,19 @@ _, parsed_data = pt.parse_text(
 for i in range(len(parsed_data)):
     doc = parsed_data[i]
     for sent in doc.sents:
-        print sent
+        print(sent)
         for nc in sent.noun_chunks:
             # asking what who question
             if nc.root.dep_ == 'nsubj' or nc.root.dep_ == 'nsubjpass':
                 Qword = u'Who' if is_person(doc, nc) else u'What'
                 question = generate_subj_question(doc, nc, Qword)
-                print question
+                print(question)
             elif nc.root.dep_ == 'dobj':
                 Qword = u'Who' if is_person(doc, nc) else u'What'
                 question = generate_obj_question(doc, nc, Qword)
-                print question
+                print(question)
 
-        print ' \n'
+        print(' \n')
 
 
 
