@@ -1,15 +1,25 @@
 #%%
 import os, sys
 import spacy
-from pattern.en import conjugate
-import nltk
+# from pattern.en import conjugate
 import logging
+import neuralcoref
 # nltk.download('averaged_perceptron_tagger')
 sys.path.append('/home/flora/Github/question_answer')
 
 
 # from src.util.parse_text import parse_text
-nlp = spacy.load("en_core_web_md")
+nlp = spacy.load("en")
+coref = neuralcoref.NeuralCoref(nlp.vocab)
+
+nlp.add_pipe(coref, name='neuralcoref')
+
+# You're done. You can now use NeuralCoref the same way you usually manipulate a SpaCy document and it's annotations.
+doc = nlp(u'My sister has a dog. She loves him.')
+
+doc._.has_coref
+doc._.coref_clusters
+# neuralcoref.add_to_pipe(nlp)
 # 
 #%%
 # start from generating very simple questions from very simple sentences
@@ -28,12 +38,12 @@ sents = [u'Apple is red',
 #%% testing
 doc = nlp(sents[1])
 s = 'abckdjf'
-print s[:-1]
+print ((s[:-1]))
 for nc in doc.noun_chunks:
     print(nc.text, nc.root.dep_, nc.root.head.text, nc.root.text  )
     print(nc.text ,doc[nc.root.head.i : nc.root.head.right_edge.i + 1])
     print(nc.root.head.left_edge, nc.root.head.right_edge)
-    print nc.root.text
+    print(nc.root.text)
     print('  ', nc.start, nc.end)
     print('  ', )
     
@@ -43,7 +53,7 @@ doc = nlp(sent)
 tokens = []
 for t in doc:
     tokens.append(t.text)   
-print nltk.pos_tag(tokens)
+print ((nltk.pos_tag(tokens)))
 text = nltk.wordpunct_tokenize(u" is going to the park by car.")
 
 
@@ -91,16 +101,14 @@ def generate_obj_question(sent, nc, Qword):
         aux = [c for c in list(main_verb.lefts) if c.dep_ == 'aux']
         if len(aux) != 0:
             extracted_aux = aux.pop(0)
-            if extracted_aux.tag_ in ['VBP', 'VBZ']:
-                extracted_aux = conjugate(extracted_aux.text, person = 3)
-            elif extracted_aux.tag_ == 'VBD':
-                extracted_aux = conjugate(extracted_aux.text, tense = 'past', person = 3)
+            if extracted_aux.tag_ in ['VBP', 'VBZ', 'VBD']:
+                extracted_aux = extracted_aux._.inflect(extracted_aux.tag_)
             else:
                 extracted_aux = extracted_aux.text
         else:
-            print "Something's wrong with the parsing, main verb is defined as VBG or VBN without auxiliary"
-            print "sentence is: ", sent
-            print main_verb.text
+            logging.warning("Something's wrong with the parsing, main verb is defined as VBG or VBN without auxiliary")
+            logging.warning("sentence is: ", sent) 
+            logging.warning( main_verb.text)
             return -1
         aux = [a.text for a in aux]
         verb = ' '.join(aux) + ' ' + main_verb.text if len(aux) > 0 else main_verb.text
@@ -116,35 +124,32 @@ def generate_obj_question(sent, nc, Qword):
             if len(aux) != 0:
                 extracted_aux = aux[0].text
                 if len(aux) > 1:
-                    print "Two aux with a present original verb ...?"
-                    print sent
-                    print aux
+                    print ("Two aux with a present original verb ...?")
+                    print(sent)
+                    print(aux)
             else:
                 extracted_aux = 'does'
         verb = main_verb.lemma_
     # piece together the rest of the sentence
     return ' '.join([Qword, extracted_aux, subject,verb]) + '?'
 
-        
-
-
 
 
 # asking what and who question
 for i in range(len(sents)):
     sent = nlp(sents[i])
-    print sent
+    print(sent)
     for nc in sent.noun_chunks:
         # asking what who question
         if nc.root.dep_ == 'nsubj' or nc.root.dep_ == 'nsubjpass':
             Qword = u'Who' if is_person(sent, nc) else u'What'
             question = generate_subj_question(sent, nc, Qword)
-            print question
+            print(question)
         elif nc.root.dep_ == 'dobj':
             Qword = u'Who' if is_person(sent, nc) else u'What'
             question = generate_obj_question(sent, nc, Qword)
-            print question
-    print ' \n'
+            print(question)
+    print(' \n')
 
 
 # nsubj 
